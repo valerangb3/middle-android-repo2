@@ -4,6 +4,8 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import ru.yandex.praktikumchatapp.data.ChatRepository
 
@@ -12,9 +14,9 @@ class ChatViewModel(
 ) : ViewModel() {
 
     private val repository = ChatRepository()
+    private val _messages = MutableStateFlow<List<Message>>(emptyList())
+    val messages = _messages.asStateFlow()
 
-    private val _messages = MutableLiveData<List<Message>>(emptyList())  // TODO Задание 1: замените на Flow
-    val messages: LiveData<List<Message>> = _messages
 
     // TODO Задание 3: добавьте состояние shouldShowKeyboard
 
@@ -35,7 +37,7 @@ class ChatViewModel(
     }
 
     fun sendMyMessage(messageText: String) {
-        val currentMessages = _messages.value ?: emptyList()
+        val currentMessages = _messages.value
         _messages.value = currentMessages + Message.MyMessage(messageText)
     }
 }

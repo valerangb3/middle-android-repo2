@@ -39,7 +39,12 @@ class ChatRepositoryTest {
 
     @Test
     fun `getReplyMessage should return a non-empty string`() = runTest {
-        // TODO Задание 2: напишите юнит-тест
+        chatRepository.getReplyMessage().test {
+            val result = awaitItem()
+            println("foo-bar $result")
+            assert(awaitItem().isNotBlank())
+            cancelAndIgnoreRemainingEvents()
+        }
     }
 
     @Test
