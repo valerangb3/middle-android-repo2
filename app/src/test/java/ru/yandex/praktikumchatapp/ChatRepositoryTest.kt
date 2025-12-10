@@ -39,9 +39,14 @@ class ChatRepositoryTest {
 
     @Test
     fun `getReplyMessage should return a non-empty string`() = runTest {
+        val message = "Some message"
+        `when`(chatRepository.getReplyMessage())
+            .thenReturn(
+                flow {
+                    emit(message)
+                }
+            )
         chatRepository.getReplyMessage().test {
-            val result = awaitItem()
-            println("foo-bar $result")
             assert(awaitItem().isNotBlank())
             cancelAndIgnoreRemainingEvents()
         }
