@@ -1,6 +1,7 @@
 package ru.yandex.praktikumchatapp
 
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -77,128 +78,63 @@ fun ChatScreen(
     modifier: Modifier = Modifier
 ) {
     val viewModel = remember { ChatViewModel() }
-    val messagesList = viewModel.messages.collectAsState(emptyList())
-    var messageText by remember { mutableStateOf("") }
     val focusRequester = remember { FocusRequester() }
-    val shouldShowKeyBoard by viewModel.shouldShowKeyboard.collectAsState()
 
     val chatState by viewModel.chatState.collectAsState()
     when (chatState) {
         is ChatState.Content -> {
-
-            Column(modifier = modifier.fillMaxSize()) {
-                // Список сообщений
-                LazyColumn(
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(start = 16.dp, end = 16.dp, top = 16.dp)
-                ) {
-                    items((chatState as ChatState.Content).messages) { message ->
-                        when (message) {
-                            is Message.MyMessage -> MyMessageCard(message)
-                            is Message.OtherMessage -> OtherMessageCard(message)
-                        }
-                    }
-                }
-                val shouldShowKeyBoard = (chatState as ChatState.Content).shouldShowKeyboard
-                /*LaunchedEffect(shouldShowKeyBoard) {
-                    if (shouldShowKeyBoard) {
-                        focusRequester.requestFocus()
-                    }
-                }*/
-
-                // Поле для ввода сообщения
-                /*Row(
-                    modifier = modifier
-                        .padding(16.dp)
-                        .fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    BasicTextField(
-                        value = messageText,
-                        onValueChange = {
-                            messageText = it
-                        },
-                        modifier = Modifier
-                            .weight(1f)
-                            .padding(8.dp)
-                            .background(Color.LightGray, shape = MaterialTheme.shapes.small)
-                            .padding(10.dp)
-                            .focusRequester(focusRequester),
-                        keyboardOptions = KeyboardOptions.Default.copy(
-                            imeAction = ImeAction.Send
-                        ),
-                        keyboardActions = KeyboardActions(
-                            onSend = {
-                                if (messageText.isNotBlank()) {
-                                    viewModel.sendMyMessage(messageText)
-                                    messageText = ""
-                                }
-                            }
-                        )
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Button(
-                        onClick = {
-                            if (messageText.isNotBlank()) {
-                                viewModel.sendMyMessage(messageText)
-                                messageText = ""
-                            }
-                        }
-                    ) {
-                        Text(stringResource(R.string.send))
-                    }
-                }*/
-                MessageInput(
-                    modifier = Modifier,
-                    // messageText = messageText,
-                    // shouldShowKeyBoard = (chatState as ChatState.Content).shouldShowKeyboard,
-                    onInputMessage = {
-                        //messageText = it
-                    },
-                    onSend = {
-                        /*if (messageText.isNotBlank()) {
-                            viewModel.sendMyMessage(messageText)
-                            messageText = ""
-                        }*/
-                    },
-                    onClick = {
-                        /*if (messageText.isNotBlank()) {
-                            viewModel.sendMyMessage(messageText)
-                            messageText = ""
-                        }*/
-                    }
-                )
-            }
-            /*
             ChatContent(
-                messages = (chatState as ChatState.Content).messages,
-                onInputMessage = {
-                    messageText = it
-                },
-                messageText = messageText,
-                modifier = modifier
-            )*/
+                state = chatState as ChatState.Content,
+                modifier = modifier,
+                viewModel = viewModel,
+                focusRequester = focusRequester
+            )
         }
     }
 }
 
 @Composable
+private fun ChatContent(
+    state: ChatState.Content,
+    viewModel: ChatViewModel,
+    focusRequester: FocusRequester,
+    modifier: Modifier = Modifier
+) {
+    Column(modifier = modifier.fillMaxSize()) {
+        val shouldShowKeyBoard = state.shouldShowKeyboard
+        LaunchedEffect(shouldShowKeyBoard) {
+            if (shouldShowKeyBoard) {
+                focusRequester.requestFocus()
+            }
+        }
+        MessageList(state.messages, modifier = Modifier.weight(1f))
+        val onInputMessage = remember { viewModel::onInput }
+        val onSend = remember { viewModel::sendMyMessage }
+        MessageInput(
+            messageText = state.inputMessageText,
+            focusRequester = focusRequester,
+            onInputMessage = onInputMessage,
+            onSend = onSend ,
+        )
+    }
+}
+
+@Composable
 private fun MessageInput(
-    // messageText: String,
+    messageText: String,
+    focusRequester: FocusRequester,
     onInputMessage: (String) -> Unit,
     onSend: () -> Unit,
-    onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    // shouldShowKeyBoard: Boolean = false
 ) {
-    val focusRequester = remember { FocusRequester() }
-    /*LaunchedEffect(shouldShowKeyBoard) {
-        if (shouldShowKeyBoard) {
-            focusRequester.requestFocus()
-        }
-    }*/
-    // Поле для ввода сообщения
+    LaunchedEffect(Unit) {
+        Log.d("ComposeDebug", "MessageInput КОМПОЗИРУЕТСЯ ВПЕРВЫЕ ИЛИ ПРИНУДИТЕЛЬНО")
+    }
+
+    // Этот код выполняется при КАЖДОЙ рекомпозиции функции
+    Log.d("ComposeDebug", "MessageInput РЕКОМПОЗИРУЕТСЯ. messageText = $messageText")
+
+
     Row(
         modifier = modifier
             .padding(16.dp)
@@ -206,7 +142,7 @@ private fun MessageInput(
         verticalAlignment = Alignment.CenterVertically
     ) {
         BasicTextField(
-            value = "",
+            value = messageText,
             onValueChange = onInputMessage,
             modifier = Modifier
                 .weight(1f)
@@ -225,9 +161,26 @@ private fun MessageInput(
         )
         Spacer(modifier = Modifier.width(8.dp))
         Button(
-            onClick = onClick
+            onClick = onSend
         ) {
             Text(stringResource(R.string.send))
+        }
+    }
+}
+
+@Composable
+fun MessageList(messages: List<Message>, modifier: Modifier = Modifier) {
+    Column(modifier = modifier) {
+        LazyColumn(
+            modifier = Modifier
+                .padding(start = 16.dp, end = 16.dp, top = 16.dp)
+        ) {
+            items(items = messages, key = { it.hashCode() }) { message ->
+                when (message) {
+                    is Message.MyMessage -> MyMessageCard(message)
+                    is Message.OtherMessage -> OtherMessageCard(message)
+                }
+            }
         }
     }
 }
