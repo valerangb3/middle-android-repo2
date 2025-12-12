@@ -1,10 +1,9 @@
 package ru.yandex.praktikumchatapp.presentation
 
-import androidx.compose.ui.graphics.vector.Path
-import androidx.lifecycle.LiveData
-import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
@@ -12,7 +11,8 @@ import kotlinx.coroutines.launch
 import ru.yandex.praktikumchatapp.data.ChatRepository
 
 class ChatViewModel(
-    val isWithReplies: Boolean = true
+    private val isWithReplies: Boolean = true,
+    private val dispatcher: CoroutineDispatcher = Dispatchers.IO
 ) : ViewModel() {
     private val repository = ChatRepository()
     private val _chatState = MutableStateFlow<ChatState>(
@@ -24,7 +24,7 @@ class ChatViewModel(
     val chatState = _chatState.asStateFlow()
 
     init {
-        viewModelScope.launch {
+        viewModelScope.launch(dispatcher) {
             while (isWithReplies) {
                 repository.getReplyMessage().collect { response ->
                     val currentMessage = Message.OtherMessage(response)
@@ -39,20 +39,28 @@ class ChatViewModel(
         if (currentState is ChatState.Content) {
             var currentMessages = currentState.messages
             currentMessages = currentMessages + message
-            _chatState.value = currentState.copy(
-                messages = currentMessages,
-                shouldShowKeyboard = currentMessages.size == 1
-            )
+            _chatState.update { currentState ->
+                if (currentState is ChatState.Content) {
+                    currentState.copy(
+                        messages = currentMessages,
+                        shouldShowKeyboard = currentMessages.size == 1
+                    )
+                } else {
+                    currentState
+                }
+            }
         }
     }
 
-    fun sendMyMessage() {
-        val curState = chatState.value
-        if (curState is ChatState.Content) {
-            val myMessage = curState.inputMessageText
-            if (myMessage.isNotBlank()) {
-                val currentMessage = Message.MyMessage(myMessage)
-                updateMessageList(currentMessage)
+    fun sendMyMessage(message: String = "") {
+        viewModelScope.launch(dispatcher) {
+            val curState = chatState.value
+            if (curState is ChatState.Content) {
+                val myMessage = message.ifBlank { curState.inputMessageText }
+                if (myMessage.isNotBlank()) {
+                    val currentMessage = Message.MyMessage(myMessage)
+                    updateMessageList(currentMessage)
+                }
             }
         }
     }

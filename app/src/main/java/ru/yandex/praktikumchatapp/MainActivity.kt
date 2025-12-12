@@ -1,7 +1,6 @@
 package ru.yandex.praktikumchatapp
 
 import android.os.Bundle
-import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -29,9 +28,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -63,8 +60,12 @@ class MainActivity : ComponentActivity() {
                         )
                     },
                     content = { innerPadding ->
+                        val viewModel = remember { ChatViewModel() }
                         ChatScreen(
-                            modifier = Modifier.padding(innerPadding)
+                            viewModel = viewModel,
+                            onSend = viewModel::sendMyMessage,
+                            onInputMessage = viewModel::onInput,
+                            modifier = Modifier.padding(innerPadding),
                         )
                     }
                 )
@@ -75,19 +76,23 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun ChatScreen(
-    modifier: Modifier = Modifier
+    viewModel: ChatViewModel,
+    modifier: Modifier = Modifier,
+    onInputMessage: (String) -> Unit,
+    onSend: () -> Unit,
 ) {
-    val viewModel = remember { ChatViewModel() }
     val focusRequester = remember { FocusRequester() }
 
     val chatState by viewModel.chatState.collectAsState()
+
     when (chatState) {
         is ChatState.Content -> {
             ChatContent(
                 state = chatState as ChatState.Content,
                 modifier = modifier,
-                viewModel = viewModel,
-                focusRequester = focusRequester
+                focusRequester = focusRequester,
+                onSend = onSend,
+                onInputMessage = onInputMessage
             )
         }
     }
@@ -96,8 +101,9 @@ fun ChatScreen(
 @Composable
 private fun ChatContent(
     state: ChatState.Content,
-    viewModel: ChatViewModel,
     focusRequester: FocusRequester,
+    onInputMessage: (String) -> Unit,
+    onSend: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier.fillMaxSize()) {
@@ -108,8 +114,7 @@ private fun ChatContent(
             }
         }
         MessageList(state.messages, modifier = Modifier.weight(1f))
-        val onInputMessage = remember { viewModel::onInput }
-        val onSend = remember { viewModel::sendMyMessage }
+
         MessageInput(
             messageText = state.inputMessageText,
             focusRequester = focusRequester,
@@ -127,14 +132,6 @@ private fun MessageInput(
     onSend: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    LaunchedEffect(Unit) {
-        Log.d("ComposeDebug", "MessageInput КОМПОЗИРУЕТСЯ ВПЕРВЫЕ ИЛИ ПРИНУДИТЕЛЬНО")
-    }
-
-    // Этот код выполняется при КАЖДОЙ рекомпозиции функции
-    Log.d("ComposeDebug", "MessageInput РЕКОМПОЗИРУЕТСЯ. messageText = $messageText")
-
-
     Row(
         modifier = modifier
             .padding(16.dp)

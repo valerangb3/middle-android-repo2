@@ -13,9 +13,7 @@ import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import org.mockito.Mockito.mock
-import org.mockito.Mockito.times
 import org.mockito.Mockito.`when`
-import org.mockito.kotlin.verify
 import ru.yandex.praktikumchatapp.data.ChatApi
 import ru.yandex.praktikumchatapp.data.ChatRepository
 
@@ -29,7 +27,7 @@ class ChatRepositoryTest {
     @Before
     fun setup() {
         Dispatchers.setMain(testDispatcher)
-        chatRepository = ChatRepository(chatApi)
+        chatRepository = ChatRepository(chatApi, testDispatcher)
     }
 
     @After
@@ -38,7 +36,7 @@ class ChatRepositoryTest {
     }
 
     @Test
-    fun `getReplyMessage should return a non-empty string`() = runTest {
+    fun `getReplyMessage should return a non-empty string`() = runTest(testDispatcher) {
         val message = "Some message"
         `when`(chatRepository.getReplyMessage())
             .thenReturn(
@@ -53,7 +51,7 @@ class ChatRepositoryTest {
     }
 
     @Test
-    fun `getReplyMessage should retry on error then successfully return string`() = runTest {
+    fun `getReplyMessage should retry on error then successfully return string`() = runTest(testDispatcher) {
         val replyText = "Hello"
         var isException = true
 
