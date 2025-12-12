@@ -172,7 +172,7 @@ fun MessageList(messages: List<Message>, modifier: Modifier = Modifier) {
             modifier = Modifier
                 .padding(start = 16.dp, end = 16.dp, top = 16.dp)
         ) {
-            items(items = messages, key = { it.hashCode() }) { message ->
+            items(items = messages) { message ->
                 when (message) {
                     is Message.MyMessage -> MyMessageCard(message)
                     is Message.OtherMessage -> OtherMessageCard(message)
