@@ -25,16 +25,20 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.livedata.observeAsState
-import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import ru.yandex.praktikumchatapp.presentation.ChatState
 import ru.yandex.praktikumchatapp.presentation.ChatViewModel
 import ru.yandex.praktikumchatapp.presentation.Message
 import ru.yandex.praktikumchatapp.ui.theme.PraktikumChatAppTheme
@@ -56,8 +60,12 @@ class MainActivity : ComponentActivity() {
                         )
                     },
                     content = { innerPadding ->
+                        val viewModel = remember { ChatViewModel() }
                         ChatScreen(
-                            modifier = Modifier.padding(innerPadding)
+                            viewModel = viewModel,
+                            onSend = viewModel::sendMyMessage,
+                            onInputMessage = viewModel::onInput,
+                            modifier = Modifier.padding(innerPadding),
                         )
                     }
                 )
@@ -68,67 +76,107 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun ChatScreen(
+    viewModel: ChatViewModel,
+    modifier: Modifier = Modifier,
+    onInputMessage: (String) -> Unit,
+    onSend: () -> Unit,
+) {
+    val focusRequester = remember { FocusRequester() }
+
+    val chatState by viewModel.chatState.collectAsState()
+
+    when (chatState) {
+        is ChatState.Content -> {
+            ChatContent(
+                state = chatState as ChatState.Content,
+                modifier = modifier,
+                focusRequester = focusRequester,
+                onSend = onSend,
+                onInputMessage = onInputMessage
+            )
+        }
+    }
+}
+
+@Composable
+private fun ChatContent(
+    state: ChatState.Content,
+    focusRequester: FocusRequester,
+    onInputMessage: (String) -> Unit,
+    onSend: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val viewModel = remember { ChatViewModel() }
-    val messagesList = viewModel.messages.observeAsState(emptyList())
-    val messageText = remember { mutableStateOf("") }
-    // TODO Задание 3: добавьте focusRequester
-
     Column(modifier = modifier.fillMaxSize()) {
+        val shouldShowKeyBoard = state.shouldShowKeyboard
+        LaunchedEffect(shouldShowKeyBoard) {
+            if (shouldShowKeyBoard) {
+                focusRequester.requestFocus()
+            }
+        }
+        MessageList(state.messages, modifier = Modifier.weight(1f))
 
-        // Список сообщений
-        LazyColumn(
+        MessageInput(
+            messageText = state.inputMessageText,
+            focusRequester = focusRequester,
+            onInputMessage = onInputMessage,
+            onSend = onSend ,
+        )
+    }
+}
+
+@Composable
+private fun MessageInput(
+    messageText: String,
+    focusRequester: FocusRequester,
+    onInputMessage: (String) -> Unit,
+    onSend: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .padding(16.dp)
+            .fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        BasicTextField(
+            value = messageText,
+            onValueChange = onInputMessage,
             modifier = Modifier
                 .weight(1f)
+                .padding(8.dp)
+                .background(Color.LightGray, shape = MaterialTheme.shapes.small)
+                .padding(10.dp)
+                .focusRequester(focusRequester),
+            keyboardOptions = KeyboardOptions.Default.copy(
+                imeAction = ImeAction.Send
+            ),
+            keyboardActions = KeyboardActions(
+                onSend = {
+                    onSend()
+                }
+            )
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Button(
+            onClick = onSend
+        ) {
+            Text(stringResource(R.string.send))
+        }
+    }
+}
+
+@Composable
+fun MessageList(messages: List<Message>, modifier: Modifier = Modifier) {
+    Column(modifier = modifier) {
+        LazyColumn(
+            modifier = Modifier
                 .padding(start = 16.dp, end = 16.dp, top = 16.dp)
         ) {
-            items(messagesList.value) { message ->
+            items(items = messages) { message ->
                 when (message) {
                     is Message.MyMessage -> MyMessageCard(message)
                     is Message.OtherMessage -> OtherMessageCard(message)
                 }
-            }
-        }
-
-        // Поле для ввода сообщения
-        Row(
-            modifier = Modifier
-                .padding(16.dp)
-                // TODO Задание 3: добавьте focusRequester
-                .fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            BasicTextField(
-                value = messageText.value,
-                onValueChange = { messageText.value = it },
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(8.dp)
-                    .background(Color.LightGray, shape = MaterialTheme.shapes.small)
-                    .padding(10.dp),
-                keyboardOptions = KeyboardOptions.Default.copy(
-                    imeAction = ImeAction.Send
-                ),
-                keyboardActions = KeyboardActions(
-                    onSend = {
-                        if (messageText.value.isNotBlank()) {
-                            viewModel.sendMyMessage(messageText.value)
-                            messageText.value = ""
-                        }
-                    }
-                )
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Button(
-                onClick = {
-                    if (messageText.value.isNotBlank()) {
-                        viewModel.sendMyMessage(messageText.value)
-                        messageText.value = ""
-                    }
-                }
-            ) {
-                Text(stringResource(R.string.send))
             }
         }
     }

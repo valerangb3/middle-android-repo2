@@ -1,41 +1,77 @@
 package ru.yandex.praktikumchatapp.presentation
 
-import androidx.lifecycle.LiveData
-import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import ru.yandex.praktikumchatapp.data.ChatRepository
 
 class ChatViewModel(
-    val isWithReplies: Boolean = true
+    private val isWithReplies: Boolean = true,
+    private val dispatcher: CoroutineDispatcher = Dispatchers.IO
 ) : ViewModel() {
-
     private val repository = ChatRepository()
-
-    private val _messages = MutableLiveData<List<Message>>(emptyList())  // TODO Задание 1: замените на Flow
-    val messages: LiveData<List<Message>> = _messages
-
-    // TODO Задание 3: добавьте состояние shouldShowKeyboard
-
-    // TODO Задание 4: замените messages и shouldShowKeyboard на state
+    private val _chatState = MutableStateFlow<ChatState>(
+        ChatState.Content(
+            messages = emptyList(),
+            shouldShowKeyboard = false
+        )
+    )
+    val chatState = _chatState.asStateFlow()
 
     init {
-        viewModelScope.launch {
+        viewModelScope.launch(dispatcher) {
             while (isWithReplies) {
                 repository.getReplyMessage().collect { response ->
-
-                    val currentMessages = _messages.value ?: emptyList()
-                    _messages.value =
-                        currentMessages + Message.OtherMessage(response)
-
+                    val currentMessage = Message.OtherMessage(response)
+                    updateMessageList(currentMessage)
                 }
             }
         }
     }
 
-    fun sendMyMessage(messageText: String) {
-        val currentMessages = _messages.value ?: emptyList()
-        _messages.value = currentMessages + Message.MyMessage(messageText)
+    private fun updateMessageList(message: Message) {
+        val currentState = _chatState.value
+        if (currentState is ChatState.Content) {
+            var currentMessages = currentState.messages
+            currentMessages = currentMessages + message
+            _chatState.update { currentState ->
+                if (currentState is ChatState.Content) {
+                    currentState.copy(
+                        messages = currentMessages,
+                        shouldShowKeyboard = currentMessages.size == 1
+                    )
+                } else {
+                    currentState
+                }
+            }
+        }
+    }
+
+    fun sendMyMessage(message: String = "") {
+        viewModelScope.launch(dispatcher) {
+            val curState = chatState.value
+            if (curState is ChatState.Content) {
+                val myMessage = message.ifBlank { curState.inputMessageText }
+                if (myMessage.isNotBlank()) {
+                    val currentMessage = Message.MyMessage(myMessage)
+                    updateMessageList(currentMessage)
+                }
+            }
+        }
+    }
+
+    fun onInput(messageText: String) {
+        _chatState.update { currentState ->
+            if (currentState is ChatState.Content) {
+                currentState.copy(inputMessageText = messageText)
+            } else {
+                currentState
+            }
+        }
     }
 }
